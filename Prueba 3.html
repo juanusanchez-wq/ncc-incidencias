@@ -1,0 +1,1649 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NCC Network Center Control Incidencias</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome CDN -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- PapaParse CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Firebase SDK CDN (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .table-excel th { position: sticky; top: 0; z-index: 20; background-color: #f1f5f9; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f8fafc; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+       
+        .kpi-card-active-red {
+            background-color: #fef2f2 !important;
+            border-color: #f43f5e !important;
+            box-shadow: 0 4px 12px rgba(244, 63, 94, 0.15) !important;
+            transform: translateY(-2px);
+        }
+        .kpi-card-active-amber {
+            background-color: #fffbeb !important;
+            border-color: #f59e0b !important;
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.15) !important;
+            transform: translateY(-2px);
+        }
+        .kpi-card-active-blue {
+            background-color: #eff6ff !important;
+            border-color: #3b82f6 !important;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15) !important;
+            transform: translateY(-2px);
+        }
+        .kpi-card-active-purple {
+            background-color: #faf5ff !important;
+            border-color: #a855f7 !important;
+            box-shadow: 0 4px 12px rgba(168, 85, 247, 0.15) !important;
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- HEADER ELEGANTE -->
+    <header class="bg-slate-900 text-white shadow-md py-3.5 px-8 flex justify-between items-center z-20 flex-wrap gap-4 border-b border-slate-800 relative">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold text-base shadow-sm">
+                <i class="fa-solid fa-tower-observation"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold tracking-tight flex items-center gap-2 text-slate-100">
+                    NCC Network Center Control
+                    <span class="bg-slate-800 text-indigo-300 text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-full border border-slate-700">Pro</span>
+                </h1>
+                <p class="text-slate-400 text-xs font-medium">Plataforma de Monitoreo &amp; Auditoría de Tiempos</p>
+            </div>
+        </div>
+
+        <div class="hidden lg:flex items-center justify-center absolute left-1/2 transform -translate-x-1/2">
+            <div class="bg-slate-800/80 px-3.5 py-1.5 rounded-xl border border-slate-700 flex items-center justify-center">
+                <img src="https://http2.mlstatic.com/frontend-assets/ui-navigation/5.22.13/mercadolibre/logo__large_plus.png"
+                     alt="Mercado Libre"
+                     class="h-6 object-contain brightness-95">
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-2.5 text-sm flex-wrap gap-2">
+            <button id="btnOpenEditMaster" type="button" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold py-2 px-3 rounded-xl transition-all border border-slate-700 text-xs flex items-center">
+                <i class="fa-solid fa-database mr-2 text-indigo-400"></i> Base Maestra
+            </button>
+
+            <label for="csvUpload" class="cursor-pointer bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2 px-3.5 rounded-xl shadow-sm transition-all flex items-center text-xs transform active:scale-95">
+                <i class="fa-solid fa-file-csv mr-2"></i> Cargar CSV
+            </label>
+            <input type="file" id="csvUpload" accept=".csv" class="hidden">
+
+            <button id="btnExportCSV" type="button" disabled class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold py-2 px-3.5 rounded-xl transition-all border border-slate-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center text-xs">
+                <i class="fa-solid fa-download mr-2 text-emerald-400"></i> Exportar
+            </button>
+        </div>
+    </header>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <main class="flex-grow p-6 max-w-[1500px] mx-auto w-full flex flex-col gap-5">
+
+        <!-- STATUS BASE MAESTRA -->
+        <div class="bg-white rounded-2xl p-3 px-5 text-xs flex justify-between items-center shadow-sm border border-slate-200">
+            <span class="flex items-center gap-2.5 font-medium text-slate-600">
+                <span class="relative flex h-2.5 w-2.5">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                </span>
+                Base Maestra (Firebase):
+                <strong id="masterStatusText" class="text-slate-900 font-bold ml-1">Conectando...</strong>
+            </span>
+            <div class="flex items-center gap-2">
+                <button id="btnQuickEditMaster" type="button" class="text-indigo-600 hover:text-indigo-800 font-bold text-xs bg-indigo-50 hover:bg-indigo-100 px-3 py-1 rounded-lg transition-colors border border-indigo-100">
+                    <i class="fa-solid fa-list-check mr-1"></i> Ver / Editar Destinos
+                </button>
+                <button id="btnClearCurrentData" type="button" class="text-rose-600 hover:text-rose-800 font-bold text-xs bg-rose-50 hover:bg-rose-100 px-3 py-1 rounded-lg transition-colors border border-rose-100 flex items-center gap-1">
+                    <i class="fa-solid fa-trash-can text-xs"></i> Limpiar Datos
+                </button>
+                <button id="btnClearMaster" type="button" class="text-slate-400 hover:text-rose-600 transition-colors hidden font-semibold flex items-center gap-1.5 bg-slate-100 hover:bg-rose-50 px-2.5 py-1 rounded-lg border border-slate-200" title="Restaurar Base">
+                    <i class="fa-solid fa-rotate-left text-xs"></i> Restaurar Base
+                </button>
+            </div>
+        </div>
+
+        <!-- KPIS LIMPIOS -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
+            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                <div class="flex justify-between items-center">
+                    <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Viajes</p>
+                    <i class="fa-solid fa-route text-slate-400 text-sm"></i>
+                </div>
+                <h2 class="text-2xl font-extrabold text-slate-800 mt-1" id="kpiTotal">0</h2>
+            </div>
+
+            <!-- TARJETA CPT VENCIDO -->
+            <div id="kpiCardCptVencido" data-incidencia="CPT Vencido" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between cursor-pointer hover:border-purple-300 transition-all select-none">
+                <div class="flex justify-between items-center">
+                    <p class="text-[11px] font-bold text-purple-600 uppercase tracking-wider">CPT VENCIDO</p>
+                    <i class="fa-solid fa-triangle-exclamation text-purple-500 text-sm"></i>
+                </div>
+                <h2 class="text-2xl font-extrabold text-purple-600 mt-1" id="kpiCptVencido">0</h2>
+            </div>
+
+            <div id="kpiCardLlegoTarde" data-incidencia="MLP llego tarde" class="hidden bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between cursor-pointer hover:border-rose-300 transition-all select-none">
+                <div class="flex justify-between items-center">
+                    <p class="text-[11px] font-bold text-rose-500 uppercase tracking-wider">MLP Llegó Tarde</p>
+                    <i class="fa-solid fa-clock text-rose-400 text-sm"></i>
+                </div>
+                <h2 class="text-2xl font-extrabold text-rose-600 mt-1" id="kpiLlegoTarde">0</h2>
+            </div>
+
+            <div id="kpiCardDemoraCarga" data-incidencia="Demora en la carga" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between cursor-pointer hover:border-amber-300 transition-all select-none">
+                <div class="flex justify-between items-center">
+                    <p class="text-[11px] font-bold text-amber-600 uppercase tracking-wider">Demora en Carga</p>
+                    <i class="fa-solid fa-truck-loading text-amber-500 text-sm"></i>
+                </div>
+                <h2 class="text-2xl font-extrabold text-amber-600 mt-1" id="kpiDemoraCarga">0</h2>
+            </div>
+
+            <div id="kpiCardTiempoTransito" data-incidencia="Tiempo de transito" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between cursor-pointer hover:border-blue-300 transition-all select-none">
+                <div class="flex justify-between items-center">
+                    <p class="text-[11px] font-bold text-blue-600 uppercase tracking-wider">Tiempo Tránsito</p>
+                    <i class="fa-solid fa-truck-fast text-blue-500 text-sm"></i>
+                </div>
+                <h2 class="text-2xl font-extrabold text-blue-600 mt-1" id="kpiTiempoTransito">0</h2>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                <div class="flex justify-between items-center">
+                    <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Estatus Viaje</p>
+                    <i class="fa-solid fa-bars-staggered text-slate-400 text-sm"></i>
+                </div>
+                <h2 class="text-2xl font-extrabold text-slate-700 mt-1" id="kpiEstados">0</h2>
+            </div>
+        </div>
+
+        <!-- GRÁFICAS INTERACTIVAS -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div class="lg:col-span-2 bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div class="flex justify-between items-center mb-3">
+                    <div>
+                        <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                            <i class="fa-solid fa-chart-column text-indigo-600 bg-indigo-50 p-1.5 rounded-lg text-xs"></i> Incidencias por Región
+                        </h3>
+                        <p class="text-[11px] text-slate-400">Haz clic en cualquier barra para filtrar por región</p>
+                    </div>
+                </div>
+                <div class="relative h-60 w-full cursor-pointer">
+                    <canvas id="chartRegionBars"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div class="flex justify-between items-center mb-3">
+                    <div>
+                        <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                            <i class="fa-solid fa-chart-pie text-indigo-600 bg-indigo-50 p-1.5 rounded-lg text-xs"></i> Distribución Operativa
+                        </h3>
+                        <p class="text-[11px] text-slate-400">Haz clic en un segmento para aislar la incidencia</p>
+                    </div>
+                </div>
+                <div class="relative h-60 w-full flex items-center justify-center cursor-pointer">
+                    <canvas id="chartIncidenciasDoughnut"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- FILTROS Y TABLA -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
+            <div class="p-4 px-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 flex-wrap gap-4">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center text-xs font-bold">
+                        <i class="fa-solid fa-sliders"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-800 text-sm">Filtros de Control</h3>
+                        <p class="text-[11px] text-slate-400">Usa Ctrl + Clic para selección múltiple</p>
+                    </div>
+                </div>
+               
+                <div class="flex gap-2.5 flex-wrap items-center">
+                    <!-- FILTRO DE FECHA DESPLEGABLE -->
+                    <select id="filterFecha" class="border border-slate-200 bg-white text-slate-700 font-semibold rounded-xl p-2 px-3 text-xs focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm h-[38px]">
+                        <option value="">Fecha (Todas)</option>
+                    </select>
+
+                    <div class="relative inline-block text-left" id="dropdownRegionContainer">
+                        <button type="button" id="btnDropdownRegion" class="inline-flex justify-between items-center w-44 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
+                            <span id="labelRegion">Región</span>
+                            <i class="fa-solid fa-chevron-down text-slate-400 text-[10px] ml-2"></i>
+                        </button>
+                        <div id="menuRegion" class="hidden absolute right-0 mt-2 w-56 rounded-2xl bg-white shadow-xl border border-slate-200 p-2 z-30 divide-y divide-slate-100">
+                            <div class="py-1 max-h-48 overflow-y-auto" id="optionsRegionList"></div>
+                            <div class="pt-2 pb-1 px-1 flex justify-between items-center text-[11px]">
+                                <span class="text-slate-400">Ctrl + Clic para varios</span>
+                                <button type="button" id="btnClearRegion" class="text-indigo-600 font-bold hover:underline">Limpiar</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="relative inline-block text-left" id="dropdownSubregionContainer">
+                        <button type="button" id="btnDropdownSubregion" class="inline-flex justify-between items-center w-48 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
+                            <span id="labelSubregion">Subregión</span>
+                            <i class="fa-solid fa-chevron-down text-slate-400 text-[10px] ml-2"></i>
+                        </button>
+                        <div id="menuSubregion" class="hidden absolute right-0 mt-2 w-60 rounded-2xl bg-white shadow-xl border border-slate-200 p-2 z-30 divide-y divide-slate-100">
+                            <div class="py-1 max-h-48 overflow-y-auto" id="optionsSubregionList"></div>
+                            <div class="pt-2 pb-1 px-1 flex justify-between items-center text-[11px]">
+                                <span class="text-slate-400">Ctrl + Clic para varios</span>
+                                <button type="button" id="btnClearSubregion" class="text-indigo-600 font-bold hover:underline">Limpiar</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <select id="filterIncidencia" class="border border-slate-200 bg-white text-slate-700 font-semibold rounded-xl p-2 px-3 text-xs focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm h-[38px]">
+                        <option value="">Tipo de Incidencia (Todos)</option>
+                        <option value="CPT Vencido">CPT Vencido</option>
+                        <option value="MLP llego tarde">MLP llego tarde</option>
+                        <option value="Demora en la carga">Demora en la carga</option>
+                        <option value="Tiempo de transito">Tiempo de transito</option>
+                        <option value="Sin Incidencia">Sin Incidencias</option>
+                    </select>
+
+                    <select id="filterEstado" class="border border-slate-200 bg-white font-semibold rounded-xl p-2 px-3 text-xs focus:ring-2 focus:ring-indigo-500 outline-none text-slate-700 shadow-sm h-[38px]">
+                        <option value="">Estatus del Viaje</option>
+                    </select>
+
+                    <button id="btnResetFilters" type="button" class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold py-2 px-3.5 rounded-xl transition-colors shadow-sm h-[38px]">
+                        Limpiar Todo
+                    </button>
+                </div>
+            </div>
+
+            <!-- TABLA PRINCIPAL -->
+            <div class="overflow-x-auto max-h-[60vh] overflow-y-auto p-2">
+                <table class="w-full text-left text-xs whitespace-nowrap border-collapse table-excel">
+                    <thead>
+                        <tr class="border-b border-slate-200 text-slate-500 uppercase text-[10px] tracking-wider font-bold">
+                            <th class="p-3 px-4 border-r border-slate-100">Fecha <i class="fa-solid fa-arrow-down-wide-short ml-1 text-indigo-500"></i></th>
+                            <th class="p-3 px-4 border-r border-slate-100">Travel ID</th>
+                            <th class="p-3 px-4 border-r border-slate-100">Destino</th>
+                            <th class="p-3 px-4 border-r border-slate-100">Región</th>
+                            <th class="p-3 px-4 border-r border-slate-100">Subregión</th>
+                            <th class="p-3 px-4">Incidencia / Detalle Retraso</th>
+                            <th class="p-3 px-4 text-center">Acción Base</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="divide-y divide-slate-100 text-slate-700 font-normal">
+                        <tr>
+                            <td colspan="7" class="p-12 text-center text-slate-400 font-medium">
+                                <i class="fa-solid fa-folder-open text-3xl mb-2 text-slate-300 block"></i>
+                                Carga un archivo CSV Diario para visualizar el tablero.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- MODAL DE GESTIÓN BASE MAESTRA -->
+    <div id="modalMaster" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-slate-200">
+            <div class="p-4 px-6 bg-slate-900 text-white flex justify-between items-center">
+                <h3 class="font-bold text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-database text-indigo-400"></i> Gestión de Base Maestra (Firebase)
+                </h3>
+                <button id="btnCloseModalMaster" type="button" class="text-slate-400 hover:text-white text-lg font-bold transition-colors">&times;</button>
+            </div>
+           
+            <div class="p-6 flex-grow overflow-y-auto space-y-4">
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-wrap gap-2 items-end shadow-sm">
+                    <div class="flex-1 min-w-[130px]">
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Destino / Sitio</label>
+                        <input type="text" id="inputDestino" placeholder="Ej. MEX1" class="w-full border border-slate-300 rounded-xl p-2 text-xs focus:ring-2 focus:ring-indigo-500 outline-none uppercase font-bold text-slate-800">
+                    </div>
+                    <div class="flex-1 min-w-[130px]">
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Región</label>
+                        <input type="text" id="inputRegion" placeholder="Ej. METRO" class="w-full border border-slate-300 rounded-xl p-2 text-xs focus:ring-2 focus:ring-indigo-500 outline-none uppercase font-semibold">
+                    </div>
+                    <div class="flex-1 min-w-[130px]">
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Subregión</label>
+                        <input type="text" id="inputSubregion" placeholder="Ej. METRO NORTE" class="w-full border border-slate-300 rounded-xl p-2 text-xs focus:ring-2 focus:ring-indigo-500 outline-none uppercase font-semibold">
+                    </div>
+                    <button id="btnAddMasterRecord" type="button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-xl text-xs h-[38px] flex items-center transition-all shadow-sm">
+                        <i class="fa-solid fa-plus mr-1.5"></i> Agregar / Actualizar
+                    </button>
+                </div>
+
+                <div class="flex justify-between items-center gap-4">
+                    <div class="relative flex-1">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                        <input type="text" id="searchMasterModal" placeholder="Buscar por Destino, Región o Subregión..." class="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <span class="text-xs text-slate-500 font-semibold" id="masterModalCount">0 registros</span>
+                </div>
+               
+                <div class="overflow-x-auto max-h-[45vh] border border-slate-200 rounded-2xl shadow-inner">
+                    <table class="w-full text-left text-xs whitespace-nowrap">
+                        <thead class="bg-slate-100 font-bold text-slate-600 border-b border-slate-200 sticky top-0">
+                            <tr>
+                                <th class="p-3 px-4">Destino</th>
+                                <th class="p-3 px-4">Región</th>
+                                <th class="p-3 px-4">Subregión</th>
+                                <th class="p-3 px-4 text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="masterTableBody" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="p-4 px-6 bg-slate-50 border-t border-slate-200 flex justify-end items-center gap-2">
+                <button id="btnCloseModalFooter" type="button" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-5 rounded-xl text-xs transition-all">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE CONFIRMACIÓN SEGURA -->
+    <div id="modalConfirmRestore" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-rose-200">
+            <div class="p-4 px-6 bg-rose-600 text-white flex justify-between items-center">
+                <h3 class="font-bold text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-triangle-exclamation"></i> Confirmación de Seguridad
+                </h3>
+                <button id="btnCloseModalRestore" type="button" class="text-white/80 hover:text-white text-lg font-bold transition-colors">&times;</button>
+            </div>
+           
+            <div class="p-6 space-y-4">
+                <div class="bg-rose-50 border border-rose-200 rounded-xl p-3.5 text-xs text-rose-800 space-y-1">
+                    <p class="font-bold"><i class="fa-solid fa-circle-exclamation mr-1"></i> ¡Advertencia de Acción Destructiva!</p>
+                    <p>Esta acción sobrescribirá la base actual en Firebase Realtime Database con los 240 destinos por defecto. Todos los cambios manuales se perderán.</p>
+                </div>
+
+                <div>
+                    <label for="inputConfirmPhrase" class="block text-xs font-semibold text-slate-700 mb-1">
+                        Escribe <strong class="text-rose-600 font-extrabold select-all">RESTAURAR</strong> para continuar:
+                    </label>
+                    <input type="text" id="inputConfirmPhrase" placeholder="RESTAURAR" autocomplete="off" class="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-rose-500 outline-none uppercase font-bold text-slate-800 tracking-wider">
+                </div>
+            </div>
+
+            <div class="p-4 px-6 bg-slate-50 border-t border-slate-200 flex justify-end items-center gap-3">
+                <button id="btnCancelRestore" type="button" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-4 rounded-xl text-xs transition-all">
+                    Cancelar
+                </button>
+                <button id="btnConfirmRestoreExecute" type="button" disabled class="bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-xl text-xs transition-all shadow-md">
+                    <i class="fa-solid fa-rotate-left mr-1"></i> Confirmar Restauración
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NOTIFICACIÓN TOAST -->
+    <div id="toast" class="fixed bottom-6 right-6 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl transform translate-y-24 opacity-0 transition-all duration-300 flex items-center z-50 pointer-events-none border border-slate-800">
+        <div class="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-[10px] mr-2.5">
+            <i class="fa-solid fa-check"></i>
+        </div>
+        <span id="toastMsg" class="font-medium text-xs">Mensaje</span>
+    </div>
+
+    <script>
+        // CONFIGURACIÓN DE FIREBASE
+        const firebaseConfig = {
+            databaseURL: "https://pendientes-6c0c8-default-rtdb.firebaseio.com"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const dbRef = firebase.database().ref("base_maestra");
+
+        // SITIOS LIMPIOS DE RESPALDO DE SEGURIDAD
+        const DEFAULT_MASTER_DATA = {
+            "EHM1": { region: "NORTE", subregion: "BAJA NORTE" },
+            "EHM4": { region: "NORTE", subregion: "BAJA NORTE" },
+            "EHM5": { region: "NORTE", subregion: "BAJA NORTE" },
+            "ELP2": { region: "NORTE", subregion: "BAJA NORTE" },
+            "MXAHM1": { region: "NORTE", subregion: "BAJA NORTE" },
+            "MXATJ1": { region: "NORTE", subregion: "BAJA NORTE" },
+            "MXXCD1": { region: "NORTE", subregion: "BAJA NORTE" },
+            "MXXHM1": { region: "NORTE", subregion: "BAJA NORTE" },
+            "MXXTJ1": { region: "NORTE", subregion: "BAJA NORTE" },
+            "MXXXL1": { region: "NORTE", subregion: "BAJA NORTE" },
+            "SCD1": { region: "NORTE", subregion: "BAJA NORTE" },
+            "SEN1": { region: "NORTE", subregion: "BAJA NORTE" },
+            "SHM1": { region: "NORTE", subregion: "BAJA NORTE" },
+            "SNG1": { region: "NORTE", subregion: "BAJA NORTE" },
+            "SXL1": { region: "NORTE", subregion: "BAJA NORTE" },
+            "SUR1": { region: "CENTRO", subregion: "BAJIO" },
+            "SQR2": { region: "CENTRO", subregion: "BAJIO" },
+            "SQR1": { region: "CENTRO", subregion: "BAJIO" },
+            "SML1": { region: "CENTRO", subregion: "BAJIO" },
+            "SLE1": { region: "CENTRO", subregion: "BAJIO" },
+            "SCY1": { region: "CENTRO", subregion: "BAJIO" },
+            "STN1": { region: "CENTRO", subregion: "BAJA SUR" },
+            "BJPKLP1": { region: "NORTE", subregion: "BAJA SUR" },
+            "BJPKMO1": { region: "NORTE", subregion: "BAJA SUR" },
+            "MXACU1": { region: "NORTE", subregion: "BAJA SUR" },
+            "MXALP1": { region: "NORTE", subregion: "BAJA SUR" },
+            "MXAMZ1": { region: "NORTE", subregion: "BAJA SUR" },
+            "MXXCU1": { region: "NORTE", subregion: "BAJA SUR" },
+            "MXXMO1": { region: "NORTE", subregion: "BAJA SUR" },
+            "MAZATLAN": { region: "CENTRO", subregion: "BAJA SUR" },
+            "SCU1": { region: "NORTE", subregion: "BAJA SUR" },
+            "SMO1": { region: "NORTE", subregion: "BAJA SUR" },
+            "SMZ1": { region: "CENTRO", subregion: "BAJA SUR" },
+            "SBJ1": { region: "CENTRO", subregion: "BAJIO" },
+            "MXXQR1": { region: "CENTRO", subregion: "BAJIO" },
+            "MXXML1": { region: "CENTRO", subregion: "BAJIO" },
+            "SPV1": { region: "CENTRO", subregion: "BAJA SUR" },
+            "MXXLE1": { region: "CENTRO", subregion: "BAJIO" },
+            "SLP1": { region: "NORTE", subregion: "BAJA SUR" },
+            "MXGT01": { region: "CENTRO", subregion: "BAJIO" },
+            "SJD1": { region: "NORTE", subregion: "BAJA SUR" },
+            "MXAQR1": { region: "CENTRO", subregion: "BAJIO" },
+            "VIVGDL": { region: "CENTRO", subregion: "CENTRO" },
+            "SZM1": { region: "CENTRO", subregion: "CENTRO" },
+            "SZL1": { region: "CENTRO", subregion: "CENTRO" },
+            "SZC1": { region: "CENTRO", subregion: "CENTRO" },
+            "STT1": { region: "CENTRO", subregion: "CENTRO" },
+            "SSL1": { region: "CENTRO", subregion: "CENTRO" },
+            "SGD3": { region: "CENTRO", subregion: "CENTRO" },
+            "MXXTN1": { region: "CENTRO", subregion: "BAJA SUR" },
+            "SGD2": { region: "CENTRO", subregion: "CENTRO" },
+            "SGD1": { region: "CENTRO", subregion: "CENTRO" },
+            "MXXPV1": { region: "CENTRO", subregion: "BAJA SUR" },
+            "SCQ1": { region: "CENTRO", subregion: "CENTRO" },
+            "MXXLP1": { region: "CENTRO", subregion: "BAJA SUR" },
+            "SAG1": { region: "CENTRO", subregion: "CENTRO" },
+            "PQT_GDL": { region: "CENTRO", subregion: "CENTRO" },
+            "MXXZC1": { region: "CENTRO", subregion: "CENTRO" },
+            "MXXSL1": { region: "CENTRO", subregion: "CENTRO" },
+            "MXXGD1": { region: "CENTRO", subregion: "CENTRO" },
+            "MXXCQ1": { region: "CENTRO", subregion: "CENTRO" },
+            "MXXAG1": { region: "CENTRO", subregion: "CENTRO" },
+            "MXJC01": { region: "CENTRO", subregion: "CENTRO" },
+            "MXAGD1": { region: "CENTRO", subregion: "CENTRO" },
+            "EGD2": { region: "CENTRO", subregion: "CENTRO" },
+            "EGD1": { region: "CENTRO", subregion: "CENTRO" },
+            "DHL_GDL": { region: "CENTRO", subregion: "CENTRO" },
+            "AMXGDL": { region: "CENTRO", subregion: "CENTRO" },
+            "MXXTG1": { region: "SUR", subregion: "PACIFICO SUR" },
+            "MXXOA1": { region: "SUR", subregion: "PACIFICO SUR" },
+            "STG1": { region: "SUR", subregion: "PACIFICO SUR" },
+            "SOA1": { region: "SUR", subregion: "PACIFICO SUR" },
+            "SHU1": { region: "SUR", subregion: "PACIFICO SUR" },
+            "SCT1": { region: "SUR", subregion: "PACIFICO SUR" },
+            "SCA1": { region: "SUR", subregion: "PACIFICO SUR" },
+            "SACA1": { region: "SUR", subregion: "PACIFICO SUR" },
+            "SVT1": { region: "SUR", subregion: "GOLFO" },
+            "SPO1": { region: "SUR", subregion: "GOLFO" },
+            "SJZ1": { region: "SUR", subregion: "GOLFO" },
+            "SJA1": { region: "SUR", subregion: "GOLFO" },
+            "MXXPO1": { region: "SUR", subregion: "GOLFO" },
+            "MXXJZ1": { region: "SUR", subregion: "GOLFO" },
+            "MXXJA1": { region: "SUR", subregion: "GOLFO" },
+            "VIVMEX": { region: "METRO", subregion: "METRO NORTE" },
+            "STL2": { region: "METRO", subregion: "METRO SUR" },
+            "STL1": { region: "METRO", subregion: "METRO SUR" },
+            "STD1": { region: "METRO", subregion: "METRO NORTE" },
+            "SMX9": { region: "METRO", subregion: "METRO NORTE" },
+            "SMX7": { region: "METRO", subregion: "METRO NORTE" },
+            "SMX6": { region: "METRO", subregion: "METRO NORTE" },
+            "SMX4": { region: "METRO", subregion: "METRO NORTE" },
+            "SMX3": { region: "METRO", subregion: "METRO SUR" },
+            "SMX2": { region: "METRO", subregion: "METRO SUR" },
+            "SMX1": { region: "METRO", subregion: "METRO NORTE" },
+            "SHP1": { region: "METRO", subregion: "METRO NORTE" },
+            "SGR2": { region: "METRO", subregion: "METRO SUR" },
+            "SCV2": { region: "METRO", subregion: "METRO SUR" },
+            "SCV1": { region: "METRO", subregion: "METRO SUR" },
+            "MXXTL1": { region: "METRO", subregion: "METRO SUR" },
+            "MXXHP1": { region: "METRO", subregion: "METRO NORTE" },
+            "MXXEM2": { region: "METRO", subregion: "METRO NORTE" },
+            "MXXCV1": { region: "METRO", subregion: "METRO SUR" },
+            "MXRC04": { region: "METRO", subregion: "METRO NORTE" },
+            "MXRC03": { region: "METRO", subregion: "METRO NORTE" },
+            "MXRC02": { region: "METRO", subregion: "METRO NORTE" },
+            "MXRC01": { region: "METRO", subregion: "METRO NORTE" },
+            "MXCD11": { region: "METRO", subregion: "METRO NORTE" },
+            "MXCD10": { region: "METRO", subregion: "METRO NORTE" },
+            "MXCD09": { region: "METRO", subregion: "METRO NORTE" },
+            "MXCD08": { region: "METRO", subregion: "METRO NORTE" },
+            "MXCD07": { region: "METRO", subregion: "METRO NORTE" },
+            "MXCD06": { region: "METRO", subregion: "METRO NORTE" },
+            "MXCD05": { region: "METRO", subregion: "METRO NORTE" },
+            "MXCD04": { region: "METRO", subregion: "METRO NORTE" },
+            "MXCD03": { region: "METRO", subregion: "METRO NORTE" },
+            "MXCD02": { region: "METRO", subregion: "METRO NORTE" },
+            "MXCD01": { region: "METRO", subregion: "METRO NORTE" },
+            "MXATL1": { region: "METRO", subregion: "METRO NORTE" },
+            "AMXMTY": { region: "NORTE", subregion: "NORESTE" },
+            "ETA4": { region: "NORTE", subregion: "NORESTE" },
+            "EVM2": { region: "NORTE", subregion: "NORESTE" },
+            "MXAMT1": { region: "NORTE", subregion: "NORESTE" },
+            "MXNL01": { region: "NORTE", subregion: "NORESTE" },
+            "MXXLV1": { region: "NORTE", subregion: "NORESTE" },
+            "MXXLW1": { region: "NORTE", subregion: "NORESTE" },
+            "MXXMA1": { region: "NORTE", subregion: "NORESTE" },
+            "MXXMT1": { region: "NORTE", subregion: "NORESTE" },
+            "MXXNL1": { region: "NORTE", subregion: "NORESTE" },
+            "MXXRX1": { region: "NORTE", subregion: "NORESTE" },
+            "MXXTA1": { region: "NORTE", subregion: "NORESTE" },
+            "MXXVM1": { region: "NORTE", subregion: "NORESTE" },
+            "SLV1": { region: "NORTE", subregion: "NORESTE" },
+            "SLW1": { region: "NORTE", subregion: "NORESTE" },
+            "SMA1": { region: "NORTE", subregion: "NORESTE" },
+            "SMT1": { region: "NORTE", subregion: "NORESTE" },
+            "SMT2": { region: "NORTE", subregion: "NORESTE" },
+            "SNL1": { region: "NORTE", subregion: "NORESTE" },
+            "SRX1": { region: "NORTE", subregion: "NORESTE" },
+            "STA1": { region: "NORTE", subregion: "NORESTE" },
+            "SVM1": { region: "NORTE", subregion: "NORESTE" },
+            "VIVMTY": { region: "NORTE", subregion: "NORESTE" },
+            "STA2": { region: "NORTE", subregion: "NORESTE" },
+            "ECH1": { region: "NORTE", subregion: "NOROESTE" },
+            "ECH2": { region: "NORTE", subregion: "NOROESTE" },
+            "ECH4": { region: "NORTE", subregion: "NOROESTE" },
+            "MXACH1": { region: "NORTE", subregion: "NOROESTE" },
+            "MXACJ1": { region: "NORTE", subregion: "NOROESTE" },
+            "MXXCH1": { region: "NORTE", subregion: "NOROESTE" },
+            "MXXCJ1": { region: "NORTE", subregion: "NOROESTE" },
+            "MXXDG1": { region: "NORTE", subregion: "NOROESTE" },
+            "MXXTR1": { region: "NORTE", subregion: "NOROESTE" },
+            "SCH1": { region: "NORTE", subregion: "NOROESTE" },
+            "SCJ1": { region: "NORTE", subregion: "NOROESTE" },
+            "SPD1": { region: "NORTE", subregion: "NOROESTE" },
+            "SDG1": { region: "NORTE", subregion: "NOROESTE" },
+            "SZV1": { region: "SUR", subregion: "GOLFO" },
+            "SVR1": { region: "SUR", subregion: "GOLFO" },
+            "SXA1": { region: "SUR", subregion: "GOLFO" },
+            "MXXVR1": { region: "SUR", subregion: "GOLFO" },
+            "MXXGR1": { region: "METRO", subregion: "PACIFICO SUR" },
+            "STP1": { region: "SUR", subregion: "GOLFO" },
+            "SCT2": { region: "SUR", subregion: "GOLFO" },
+            "MXXTP1": { region: "SUR", subregion: "GOLFO" },
+            "MXXPR1": { region: "SUR", subregion: "GOLFO" },
+            "MXXCO1": { region: "SUR", subregion: "GOLFO" },
+            "EXA1": { region: "SUR", subregion: "GOLFO" },
+            "EVR1": { region: "SUR", subregion: "GOLFO" },
+            "SVT2": { region: "SUR", subregion: "GOLFO" },
+            "EVS1": { region: "SUR", subregion: "SURESTE" },
+            "EMD1": { region: "SUR", subregion: "SURESTE" },
+            "ECN1": { region: "SUR", subregion: "SURESTE" },
+            "SCG1": { region: "METRO", subregion: "PACIFICO SUR" },
+            "SVS1": { region: "SUR", subregion: "SURESTE" },
+            "SMD1": { region: "SUR", subregion: "SURESTE" },
+            "SCN1": { region: "SUR", subregion: "SURESTE" },
+            "SCT3": { region: "SUR", subregion: "SURESTE" },
+            "SCC1": { region: "SUR", subregion: "SURESTE" },
+            "SBT1": { region: "SUR", subregion: "SURESTE" },
+            "MXXVS1": { region: "SUR", subregion: "SURESTE" },
+            "MXXMD1": { region: "SUR", subregion: "SURESTE" },
+            "MXXCN1": { region: "SUR", subregion: "SURESTE" },
+            "MXAM21": { region: "SUR", subregion: "SURESTE" },
+            "MXAM20": { region: "SUR", subregion: "SURESTE" },
+            "MXAM19": { region: "SUR", subregion: "SURESTE" },
+            "MXAM18": { region: "SUR", subregion: "SURESTE" },
+            "SGR1": { region: "METRO", subregion: "PACIFICO SUR" },
+            "SLZ1": { region: "CENTRO", subregion: "PACIFICO SUR" },
+            "MXXCZ1": { region: "SUR", subregion: "SURESTE" },
+            "MXAYU1": { region: "SUR", subregion: "SURESTE" },
+            "MXACN1": { region: "SUR", subregion: "SURESTE" },
+            "MXAYU2": { region: "SUR", subregion: "SURESTE" },
+            "MXAM17": { region: "SUR", subregion: "SURESTE" },
+            "MXAM16": { region: "SUR", subregion: "SURESTE" },
+            "MXAMX1": { region: "METRO", subregion: "METRO NORTE" },
+            "EMZ1": { region: "METRO", subregion: "METRO NORTE" },
+            "EIX1": { region: "METRO", subregion: "METRO SUR" },
+            "MXAM15": { region: "SUR", subregion: "SURESTE" },
+            "MXAM14": { region: "SUR", subregion: "SURESTE" },
+            "MXAM13": { region: "SUR", subregion: "SURESTE" },
+            "MXDC12": { region: "METRO", subregion: "METRO NORTE" },
+            "SMX8": { region: "METRO", subregion: "METRO NORTE" },
+            "ECH5": { region: "NORTE", subregion: "NORESTE" },
+            "MXXEM3": { region: "METRO", subregion: "METRO NORTE" },
+            "MXXMT2": { region: "NORTE", subregion: "NORESTE" },
+            "MXAM12": { region: "SUR", subregion: "SURESTE" },
+            "MXAM11": { region: "SUR", subregion: "SURESTE" },
+            "SGD4": { region: "CENTRO", subregion: "CENTRO" },
+            "SMX10": { region: "METRO", subregion: "METRO NORTE" },
+            "SMX5": { region: "METRO", subregion: "METRO SUR" },
+            "SMX11": { region: "METRO", subregion: "METRO NORTE" },
+            "MXCD14": { region: "METRO", subregion: "METRO NORTE" },
+            "MXJC02": { region: "CENTRO", subregion: "CENTRO" },
+            "MXXGD2": { region: "CENTRO", subregion: "CENTRO" },
+            "MXXQR2": { region: "CENTRO", subregion: "BAJIO" },
+            "MXCD13": { region: "METRO", subregion: "METRO NORTE" },
+            "SMX20": { region: "METRO", subregion: "METRO NORTE" },
+            "SHPSP1": { region: "METRO", subregion: "METRO NORTE" },
+            "SHPSP2": { region: "METRO", subregion: "METRO NORTE" },
+            "SHPSP3": { region: "METRO", subregion: "METRO NORTE" }
+        };
+
+        let rawData = [];
+        let filteredData = [];
+        let masterMap = new Map();
+
+        let showMLPLlegoTarde = false;
+
+        let selectedIncidencias = new Set();
+        let selectedRegions = new Set();
+        let selectedSubregions = new Set();
+
+        let chartBarsInstance = null;
+        let chartDoughnutInstance = null;
+
+        const inputCSV = document.getElementById('csvUpload');
+        const btnExport = document.getElementById('btnExportCSV');
+        const masterStatusText = document.getElementById('masterStatusText');
+        const btnClearMaster = document.getElementById('btnClearMaster');
+        const btnClearCurrentData = document.getElementById('btnClearCurrentData');
+
+        const btnDropdownRegion = document.getElementById('btnDropdownRegion');
+        const menuRegion = document.getElementById('menuRegion');
+        const labelRegion = document.getElementById('labelRegion');
+        const optionsRegionList = document.getElementById('optionsRegionList');
+        const btnClearRegion = document.getElementById('btnClearRegion');
+
+        const btnDropdownSubregion = document.getElementById('btnDropdownSubregion');
+        const menuSubregion = document.getElementById('menuSubregion');
+        const labelSubregion = document.getElementById('labelSubregion');
+        const optionsSubregionList = document.getElementById('optionsSubregionList');
+        const btnClearSubregion = document.getElementById('btnClearSubregion');
+
+        const filterFecha = document.getElementById('filterFecha');
+        const filterIncidencia = document.getElementById('filterIncidencia');
+        const filterEstado = document.getElementById('filterEstado');
+        const btnResetFilters = document.getElementById('btnResetFilters');
+
+        const modalMaster = document.getElementById('modalMaster');
+        const btnOpenEditMaster = document.getElementById('btnOpenEditMaster');
+        const btnQuickEditMaster = document.getElementById('btnQuickEditMaster');
+        const btnCloseModalMaster = document.getElementById('btnCloseModalMaster');
+        const btnCloseModalFooter = document.getElementById('btnCloseModalFooter');
+        const inputDestino = document.getElementById('inputDestino');
+        const inputRegion = document.getElementById('inputRegion');
+        const inputSubregion = document.getElementById('inputSubregion');
+        const btnAddMasterRecord = document.getElementById('btnAddMasterRecord');
+        const masterTableBody = document.getElementById('masterTableBody');
+        const masterModalCount = document.getElementById('masterModalCount');
+        const searchMasterModal = document.getElementById('searchMasterModal');
+
+        const modalConfirmRestore = document.getElementById('modalConfirmRestore');
+        const btnCloseModalRestore = document.getElementById('btnCloseModalRestore');
+        const btnCancelRestore = document.getElementById('btnCancelRestore');
+        const inputConfirmPhrase = document.getElementById('inputConfirmPhrase');
+        const btnConfirmRestoreExecute = document.getElementById('btnConfirmRestoreExecute');
+        const PALABRA_CLAVE_CONFIRMACION = "RESTAURAR";
+
+        const kpiCards = [
+            { id: 'kpiCardCptVencido', key: 'CPT Vencido', activeClass: 'kpi-card-active-purple' },
+            { id: 'kpiCardLlegoTarde', key: 'MLP llego tarde', activeClass: 'kpi-card-active-red' },
+            { id: 'kpiCardDemoraCarga', key: 'Demora en la carga', activeClass: 'kpi-card-active-amber' },
+            { id: 'kpiCardTiempoTransito', key: 'Tiempo de transito', activeClass: 'kpi-card-active-blue' }
+        ];
+
+        const COL_A = 0;   // Travel ID
+        const COL_C = 2;   // Filtro CCA / USTX01
+        const COL_D = 3;   // Fecha
+        const COL_O = 14;  // Sitio Origen
+        const COL_P = 15;  // Hora Arribo Programada
+        const COL_Q = 16;  // Hora Arribo Real
+        const COL_S = 18;  // CPT Real / Hora Salida Programada
+        const COL_T = 19;  // Hora Real Salida (Vacia = En Carga)
+        const COL_X = 23;  // Destino
+        const COL_Y = 24;  // Hora Plan Arribo Destino
+        const COL_AD = 29; // Hora Real Arribo Destino
+        const COL_AM = 38; // Estado
+
+        function saveCurrentDataToStorage() {
+            try {
+                localStorage.setItem('ncc_csv_cache_data', JSON.stringify(rawData));
+            } catch(e) {
+                console.warn("No se pudo guardar la caché local.");
+            }
+        }
+
+        function loadCurrentDataFromStorage() {
+            try {
+                const cached = localStorage.getItem('ncc_csv_cache_data');
+                if (cached) {
+                    rawData = JSON.parse(cached);
+                    if (rawData.length > 0) {
+                        btnExport.disabled = false;
+                    }
+                }
+            } catch(e) {
+                rawData = [];
+            }
+        }
+
+        function loadMasterFromFirebase() {
+            masterStatusText.textContent = "Conectando a Firebase...";
+           
+            loadCurrentDataFromStorage();
+
+            dbRef.on("value", (snapshot) => {
+                const data = snapshot.val();
+                masterMap.clear();
+
+                if (data && Object.keys(data).length > 0) {
+                    Object.keys(data).forEach(key => {
+                        const item = data[key];
+                        if (item) {
+                            masterMap.set(key.toUpperCase(), {
+                                region: (item.region || 'SIN REGION').toUpperCase(),
+                                subregion: (item.subregion || 'SIN SUBREGION').toUpperCase()
+                            });
+                        }
+                    });
+                    masterStatusText.textContent = `${masterMap.size} sitios sincronizados.`;
+                } else {
+                    masterStatusText.textContent = "Inicializando base en Firebase...";
+                    dbRef.set(DEFAULT_MASTER_DATA);
+                    return;
+                }
+
+                if (rawData.length > 0) {
+                    processMatchAndRender();
+                } else {
+                    populateDropdowns();
+                    renderCharts();
+                }
+               
+                if (!modalMaster.classList.contains('hidden')) {
+                    renderMasterModalTable();
+                }
+            }, (error) => {
+                masterStatusText.textContent = "Error de conexión con Firebase.";
+                showToast("Error de acceso a Firebase.");
+            });
+        }
+
+        btnClearCurrentData.addEventListener('click', () => {
+            if (rawData.length === 0) {
+                showToast("No hay datos cargados para limpiar.");
+                return;
+            }
+
+            rawData = [];
+            filteredData = [];
+            selectedRegions.clear();
+            selectedSubregions.clear();
+            selectedIncidencias.clear();
+           
+            localStorage.removeItem('ncc_csv_cache_data');
+
+            filterFecha.value = '';
+            filterIncidencia.value = '';
+            filterEstado.value = '';
+            inputCSV.value = '';
+            btnExport.disabled = true;
+
+            updateKPIStyles();
+            populateDropdowns();
+            renderTable();
+            updateKPIs();
+            renderCharts();
+
+            showToast("Datos limpiados correctamente.");
+        });
+
+        function openConfirmRestoreModal() {
+            inputConfirmPhrase.value = '';
+            btnConfirmRestoreExecute.disabled = true;
+            modalConfirmRestore.classList.remove('hidden');
+            inputConfirmPhrase.focus();
+        }
+
+        function closeConfirmRestoreModal() {
+            modalConfirmRestore.classList.add('hidden');
+            inputConfirmPhrase.value = '';
+        }
+
+        btnClearMaster.addEventListener('click', openConfirmRestoreModal);
+        btnCloseModalRestore.addEventListener('click', closeConfirmRestoreModal);
+        btnCancelRestore.addEventListener('click', closeConfirmRestoreModal);
+
+        inputConfirmPhrase.addEventListener('input', () => {
+            const valorIngresado = inputConfirmPhrase.value.trim().toUpperCase();
+            btnConfirmRestoreExecute.disabled = valorIngresado !== PALABRA_CLAVE_CONFIRMACION;
+        });
+
+        btnConfirmRestoreExecute.addEventListener('click', () => {
+            if (inputConfirmPhrase.value.trim().toUpperCase() !== PALABRA_CLAVE_CONFIRMACION) return;
+
+            dbRef.set(DEFAULT_MASTER_DATA).then(() => {
+                closeConfirmRestoreModal();
+                showToast("Base Maestra restaurada.");
+            }).catch(error => {
+                showToast("Error al intentar restaurar la base.");
+            });
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.shiftKey && (e.key === 'R' || e.key === 'r')) {
+                e.preventDefault();
+                const estaOculto = btnClearMaster.classList.toggle('hidden');
+                showToast(estaOculto ? "Modo Admin: Botón Restaurar OCULTO" : "Modo Admin: Botón Restaurar VISIBLE");
+            }
+
+            if (e.ctrlKey && e.shiftKey && (e.key === 'Q' || e.key === 'q')) {
+                e.preventDefault();
+                showMLPLlegoTarde = !showMLPLlegoTarde;
+               
+                const cardLlegoTarde = document.getElementById('kpiCardLlegoTarde');
+                if (showMLPLlegoTarde) {
+                    cardLlegoTarde.classList.remove('hidden');
+                    showToast("Visualización: MLP Llegó Tarde ACTIVADO");
+                } else {
+                    cardLlegoTarde.classList.add('hidden');
+                    selectedIncidencias.delete('MLP llego tarde');
+                    showToast("Visualización: MLP Llegó Tarde OCULTO");
+                }
+               
+                applyFilters();
+            }
+        });
+
+        function openMasterModal() {
+            renderMasterModalTable();
+            modalMaster.classList.remove('hidden');
+        }
+
+        function closeMasterModal() {
+            modalMaster.classList.add('hidden');
+            inputDestino.value = '';
+            inputRegion.value = '';
+            inputSubregion.value = '';
+        }
+
+        btnOpenEditMaster.addEventListener('click', openMasterModal);
+        btnQuickEditMaster.addEventListener('click', openMasterModal);
+        btnCloseModalMaster.addEventListener('click', closeMasterModal);
+        btnCloseModalFooter.addEventListener('click', closeMasterModal);
+
+        btnAddMasterRecord.addEventListener('click', () => {
+            const dest = inputDestino.value.trim().toUpperCase();
+            const reg = inputRegion.value.trim().toUpperCase();
+            const sub = inputSubregion.value.trim().toUpperCase();
+
+            if (!dest) {
+                alert("Por favor ingresa un código de Destino.");
+                return;
+            }
+
+            dbRef.child(dest).set({
+                region: reg || 'SIN REGION',
+                subregion: sub || 'SIN SUBREGION'
+            }).then(() => {
+                inputDestino.value = '';
+                inputRegion.value = '';
+                inputSubregion.value = '';
+                showToast(`Destino ${dest} guardado.`);
+            });
+        });
+
+        function renderMasterModalTable() {
+            const searchTerm = searchMasterModal.value.trim().toUpperCase();
+            let html = '';
+            let count = 0;
+
+            masterMap.forEach((val, key) => {
+                if (searchTerm === '' || key.includes(searchTerm) || val.region.includes(searchTerm) || val.subregion.includes(searchTerm)) {
+                    count++;
+                    html += `
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="p-2.5 px-4 font-bold text-slate-800">${key}</td>
+                            <td class="p-2.5 px-4 font-medium text-slate-600">${val.region}</td>
+                            <td class="p-2.5 px-4 text-slate-500">${val.subregion}</td>
+                            <td class="p-2.5 px-4 text-center space-x-1">
+                                <button type="button" onclick="editMasterEntry('${key}', '${val.region}', '${val.subregion}')" class="text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 p-1.5 px-2 rounded-lg font-semibold text-[11px] transition-colors" title="Editar">
+                                    <i class="fa-solid fa-pen"></i>
+                                </button>
+                                <button type="button" onclick="deleteMasterEntry('${key}')" class="text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 p-1.5 px-2 rounded-lg font-semibold text-[11px] transition-colors" title="Eliminar">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                }
+            });
+
+            masterTableBody.innerHTML = html || `<tr><td colspan="4" class="p-8 text-center text-slate-400">No hay destinos coincidentes.</td></tr>`;
+            masterModalCount.textContent = `${count} de ${masterMap.size} sitios registrados`;
+        }
+
+        searchMasterModal.addEventListener('input', renderMasterModalTable);
+
+        window.editMasterEntry = function(dest, reg, sub) {
+            inputDestino.value = dest;
+            inputRegion.value = reg;
+            inputSubregion.value = sub;
+            inputDestino.focus();
+        };
+
+        window.deleteMasterEntry = function(dest) {
+            if (confirm(`¿Eliminar el destino ${dest} de Firebase?`)) {
+                dbRef.child(dest).remove().then(() => {
+                    showToast(`Destino ${dest} eliminado.`);
+                });
+            }
+        };
+
+        window.quickLinkDestino = function(dest) {
+            openMasterModal();
+            inputDestino.value = dest || '';
+            const match = masterMap.get((dest || '').toUpperCase());
+            if (match) {
+                inputRegion.value = match.region || '';
+                inputSubregion.value = match.subregion || '';
+            } else {
+                inputRegion.value = '';
+                inputSubregion.value = '';
+            }
+            inputDestino.focus();
+        };
+
+        function parseDateTime(timeStr) {
+            if (!timeStr || String(timeStr).trim() === '') return null;
+            const str = String(timeStr).trim();
+
+            const parsedDate = new Date(str.replace(/-/g, '/'));
+            if (!isNaN(parsedDate.getTime())) return parsedDate;
+
+            const timeParts = str.split(':');
+            if (timeParts.length >= 2) {
+                const now = new Date();
+                const hours = parseInt(timeParts[0], 10);
+                const minutes = parseInt(timeParts[1], 10);
+                if (!isNaN(hours) && !isNaN(minutes)) {
+                    return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, 0);
+                }
+            }
+            return null;
+        }
+
+        inputCSV.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            Papa.parse(file, {
+                header: false,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    const rows = results.data.slice(1).filter(row => {
+                        const valorColumnaC = String(row[COL_C] || '').trim().toUpperCase();
+                        return !valorColumnaC.startsWith('CCA') && !valorColumnaC.startsWith('USTX01');
+                    });
+
+                    const now = new Date();
+
+                    rawData = rows.map(row => {
+                        const horaProgArribo = parseDateTime(row[COL_P]);
+                        const horaRealArriboStr = String(row[COL_Q] || '').trim();
+                        const horaRealArribo = parseDateTime(row[COL_Q]);
+                        const horaProgSalida = parseDateTime(row[COL_S]); // CPT Real
+                        const horaRealSalidaStr = String(row[COL_T] || '').trim();
+                        const horaRealSalida = parseDateTime(row[COL_T]);
+                        const horaPlanDestino = parseDateTime(row[COL_Y]);
+                        const horaRealDestino = parseDateTime(row[COL_AD]);
+                        const sitioOrigen = String(row[COL_O] || '').trim();
+
+                        // REGLA CPT VENCIDO (COL Q con datos + COL T vacía + Hora actual > CPT COL S)
+                        let cptVencido = false;
+                        let minCptVencido = 0;
+                        if (horaRealArriboStr !== '' && !horaRealSalidaStr && horaProgSalida) {
+                            const diffCpt = Math.round((now.getTime() - horaProgSalida.getTime()) / (1000 * 60));
+                            if (diffCpt > 0) {
+                                cptVencido = true;
+                                minCptVencido = diffCpt;
+                            }
+                        }
+
+                        let mlpLlegoTarde = false;
+                        let minArriboRetraso = 0;
+                        if (horaProgArribo && horaRealArribo) {
+                            const diff = Math.round((horaRealArribo.getTime() - horaProgArribo.getTime()) / (1000 * 60));
+                            if (diff > 0) {
+                                mlpLlegoTarde = true;
+                                minArriboRetraso = diff;
+                            }
+                        }
+
+                        let demoraCarga = false;
+                        let minSalidaRetraso = 0;
+                        if (horaProgSalida && horaRealSalida) {
+                            const diff = Math.round((horaRealSalida.getTime() - horaProgSalida.getTime()) / (1000 * 60));
+                            if (diff > 0) {
+                                demoraCarga = true;
+                                minSalidaRetraso = diff;
+                            }
+                        }
+
+                        let tiempoTransito = false;
+                        let minTransitoRetraso = 0;
+                        if (horaPlanDestino && horaRealDestino) {
+                            const diff = Math.round((horaRealDestino.getTime() - horaPlanDestino.getTime()) / (1000 * 60));
+                            if (diff > 0) {
+                                tiempoTransito = true;
+                                minTransitoRetraso = diff;
+                            }
+                        }
+
+                        let textoIncidenciaFinal = "Sin Incidencia";
+                        if (cptVencido) {
+                            textoIncidenciaFinal = `CPT VENCIDO — Unidad en carga con ${minCptVencido} min en exceso`;
+                        } else if (demoraCarga) {
+                            const origenTexto = sitioOrigen ? ` del ${sitioOrigen}` : "";
+                            textoIncidenciaFinal = `Unidad sale tarde ${minSalidaRetraso} min${origenTexto}`;
+                        } else if (mlpLlegoTarde) {
+                            textoIncidenciaFinal = `Unidad arriba tarde ${minArriboRetraso} min a carga`;
+                        } else if (tiempoTransito) {
+                            textoIncidenciaFinal = `Unidad va tarde ${minTransitoRetraso} min`;
+                        }
+
+                        return {
+                            fecha: String(row[COL_D] || '').trim(),
+                            travelId: String(row[COL_A] || '').trim(),
+                            origen: sitioOrigen,
+                            cptVencido: cptVencido,
+                            minCptVencido: minCptVencido,
+                            mlpLlegoTarde: mlpLlegoTarde,
+                            minArriboRetraso: minArriboRetraso,
+                            demoraCarga: demoraCarga,
+                            minSalidaRetraso: minSalidaRetraso,
+                            tiempoTransito: tiempoTransito,
+                            minTransitoRetraso: minTransitoRetraso,
+                            textoIncidencia: textoIncidenciaFinal,
+                            destino: String(row[COL_X] || '').trim(),
+                            estado: row[COL_AM] || '',
+                            region: 'N/A',
+                            subregion: 'N/A'
+                        };
+                    });
+
+                    saveCurrentDataToStorage();
+                    processMatchAndRender();
+                    btnExport.disabled = false;
+                    showToast(`Cargados ${rawData.length} viajes correctamente.`);
+                }
+            });
+        });
+
+        function processMatchAndRender() {
+            rawData.forEach(item => {
+                const match = masterMap.get(item.destino.toUpperCase());
+                if (match) {
+                    item.region = match.region || 'Sin Región';
+                    item.subregion = match.subregion || 'Sin Subregión';
+                } else {
+                    item.region = 'No Encontrado';
+                    item.subregion = 'No Encontrado';
+                }
+            });
+
+            applyFilters();
+        }
+
+        btnDropdownRegion.addEventListener('click', (e) => {
+            e.stopPropagation();
+            menuRegion.classList.toggle('hidden');
+            menuSubregion.classList.add('hidden');
+        });
+
+        btnDropdownSubregion.addEventListener('click', (e) => {
+            e.stopPropagation();
+            menuSubregion.classList.toggle('hidden');
+            menuRegion.classList.add('hidden');
+        });
+
+        document.addEventListener('click', () => {
+            menuRegion.classList.add('hidden');
+            menuSubregion.classList.add('hidden');
+        });
+
+        menuRegion.addEventListener('click', (e) => e.stopPropagation());
+        menuSubregion.addEventListener('click', (e) => e.stopPropagation());
+
+        function populateDropdowns() {
+            // POBLAR DESPLEGABLE DE FECHAS (ORDENADAS DE MÁS RECIENTE A MÁS ANTIGUA)
+            const fechasUnicas = [...new Set(rawData.map(i => i.fecha).filter(Boolean))];
+            fechasUnicas.sort((a, b) => {
+                const dateA = parseDateTime(a) || new Date(0);
+                const dateB = parseDateTime(b) || new Date(0);
+                return dateB.getTime() - dateA.getTime();
+            });
+
+            const currentFechaVal = filterFecha.value;
+            filterFecha.innerHTML = '<option value="">Fecha (Todas)</option>';
+            fechasUnicas.forEach(f => {
+                const sel = (f === currentFechaVal) ? 'selected' : '';
+                filterFecha.innerHTML += `<option value="${f}" ${sel}>${f}</option>`;
+            });
+
+            // POBLAR REGIONES
+            const masterRegiones = Array.from(masterMap.values()).map(v => v.region).filter(Boolean);
+            const rawRegiones = rawData.map(i => i.region).filter(r => r && r !== 'N/A');
+            const regionesData = [...new Set([...masterRegiones, ...rawRegiones])].sort();
+
+            optionsRegionList.innerHTML = '';
+           
+            if (regionesData.length === 0) {
+                optionsRegionList.innerHTML = `<span class="text-slate-400 text-xs px-2 py-1 block">Sin datos</span>`;
+            } else {
+                regionesData.forEach(reg => {
+                    const isChecked = selectedRegions.has(reg.toUpperCase());
+                    const activeBg = isChecked ? 'bg-indigo-50 text-indigo-900 font-bold' : 'hover:bg-slate-50 text-slate-700';
+                    optionsRegionList.innerHTML += `
+                        <div data-val="${reg}" class="item-region-opt px-3 py-1.5 cursor-pointer rounded-lg text-xs flex justify-between items-center ${activeBg} select-none">
+                            <span>${reg}</span>
+                            ${isChecked ? '<i class="fa-solid fa-check text-indigo-600 text-xs"></i>' : ''}
+                        </div>
+                    `;
+                });
+            }
+
+            // POBLAR SUBREGIONES
+            let subregionesToDisplay = [];
+            if (selectedRegions.size > 0) {
+                selectedRegions.forEach(reg => {
+                    const fromMaster = Array.from(masterMap.values())
+                        .filter(v => (v.region || '').toUpperCase() === reg)
+                        .map(v => v.subregion);
+                    const fromData = rawData
+                        .filter(i => (i.region || '').toUpperCase() === reg)
+                        .map(i => i.subregion);
+                    subregionesToDisplay.push(...fromMaster, ...fromData);
+                });
+                subregionesToDisplay = [...new Set(subregionesToDisplay.filter(Boolean))];
+            } else {
+                const masterSub = Array.from(masterMap.values()).map(v => v.subregion);
+                const rawSub = rawData.map(i => i.subregion);
+                subregionesToDisplay = [...new Set([...masterSub, ...rawSub].filter(s => s && s !== 'N/A'))];
+            }
+
+            subregionesToDisplay.sort();
+            optionsSubregionList.innerHTML = '';
+
+            if (subregionesToDisplay.length === 0) {
+                optionsSubregionList.innerHTML = `<span class="text-slate-400 text-xs px-2 py-1 block">Sin datos</span>`;
+            } else {
+                subregionesToDisplay.forEach(sub => {
+                    const isChecked = selectedSubregions.has(sub.toUpperCase());
+                    const activeBg = isChecked ? 'bg-indigo-50 text-indigo-900 font-bold' : 'hover:bg-slate-50 text-slate-700';
+                    optionsSubregionList.innerHTML += `
+                        <div data-val="${sub}" class="item-subregion-opt px-3 py-1.5 cursor-pointer rounded-lg text-xs flex justify-between items-center ${activeBg} select-none">
+                            <span>${sub}</span>
+                            ${isChecked ? '<i class="fa-solid fa-check text-indigo-600 text-xs"></i>' : ''}
+                        </div>
+                    `;
+                });
+            }
+
+            // POBLAR ESTADOS
+            const estados = [...new Set(rawData.map(i => i.estado).filter(Boolean))].sort();
+            filterEstado.innerHTML = '<option value="">Estatus del Viaje</option>';
+            estados.forEach(est => {
+                const sel = (est === filterEstado.value) ? 'selected' : '';
+                filterEstado.innerHTML += `<option value="${est}" ${sel}>${est}</option>`;
+            });
+
+            updateDropdownLabels();
+        }
+
+        optionsRegionList.addEventListener('click', (e) => {
+            const item = e.target.closest('.item-region-opt');
+            if (!item) return;
+
+            const val = item.getAttribute('data-val').toUpperCase();
+            const isMulti = e.ctrlKey || e.metaKey;
+
+            if (isMulti) {
+                if (selectedRegions.has(val)) selectedRegions.delete(val);
+                else selectedRegions.add(val);
+            } else {
+                if (selectedRegions.size === 1 && selectedRegions.has(val)) {
+                    selectedRegions.clear();
+                } else {
+                    selectedRegions.clear();
+                    selectedRegions.add(val);
+                }
+            }
+
+            selectedSubregions.clear();
+            applyFilters();
+        });
+
+        optionsSubregionList.addEventListener('click', (e) => {
+            const item = e.target.closest('.item-subregion-opt');
+            if (!item) return;
+
+            const val = item.getAttribute('data-val').toUpperCase();
+            const isMulti = e.ctrlKey || e.metaKey;
+
+            if (isMulti) {
+                if (selectedSubregions.has(val)) selectedSubregions.delete(val);
+                else selectedSubregions.add(val);
+            } else {
+                if (selectedSubregions.size === 1 && selectedSubregions.has(val)) {
+                    selectedSubregions.clear();
+                } else {
+                    selectedSubregions.clear();
+                    selectedSubregions.add(val);
+                }
+            }
+
+            applyFilters();
+        });
+
+        btnClearRegion.addEventListener('click', () => {
+            selectedRegions.clear();
+            selectedSubregions.clear();
+            applyFilters();
+        });
+
+        btnClearSubregion.addEventListener('click', () => {
+            selectedSubregions.clear();
+            applyFilters();
+        });
+
+        function updateDropdownLabels() {
+            if (selectedRegions.size === 0) {
+                labelRegion.textContent = "Región";
+            } else if (selectedRegions.size === 1) {
+                labelRegion.textContent = `Región: ${Array.from(selectedRegions)[0]}`;
+            } else {
+                labelRegion.textContent = `Región (${selectedRegions.size})`;
+            }
+
+            if (selectedSubregions.size === 0) {
+                labelSubregion.textContent = "Subregión";
+            } else if (selectedSubregions.size === 1) {
+                labelSubregion.textContent = `Subregión: ${Array.from(selectedSubregions)[0]}`;
+            } else {
+                labelSubregion.textContent = `Subregión (${selectedSubregions.size})`;
+            }
+        }
+
+        kpiCards.forEach(cardInfo => {
+            const cardEl = document.getElementById(cardInfo.id);
+            if (!cardEl) return;
+
+            cardEl.addEventListener('click', (e) => {
+                const isMultiSelect = e.ctrlKey || e.metaKey;
+
+                if (isMultiSelect) {
+                    if (selectedIncidencias.has(cardInfo.key)) selectedIncidencias.delete(cardInfo.key);
+                    else selectedIncidencias.add(cardInfo.key);
+                } else {
+                    if (selectedIncidencias.size === 1 && selectedIncidencias.has(cardInfo.key)) {
+                        selectedIncidencias.clear();
+                    } else {
+                        selectedIncidencias.clear();
+                        selectedIncidencias.add(cardInfo.key);
+                    }
+                }
+
+                updateKPIStyles();
+                filterIncidencia.value = selectedIncidencias.size === 1 ? Array.from(selectedIncidencias)[0] : "";
+                applyFilters();
+            });
+        });
+
+        function updateKPIStyles() {
+            kpiCards.forEach(cardInfo => {
+                const cardEl = document.getElementById(cardInfo.id);
+                if (selectedIncidencias.has(cardInfo.key)) {
+                    cardEl.classList.add(cardInfo.activeClass);
+                } else {
+                    cardEl.classList.remove(cardInfo.activeClass);
+                }
+            });
+        }
+
+        filterFecha.addEventListener('change', applyFilters);
+
+        filterIncidencia.addEventListener('change', () => {
+            const val = filterIncidencia.value;
+            selectedIncidencias.clear();
+            if (val && val !== "Sin Incidencia") {
+                selectedIncidencias.add(val);
+            }
+            updateKPIStyles();
+            applyFilters();
+        });
+
+        filterEstado.addEventListener('change', applyFilters);
+
+        function applyFilters() {
+            const selEstado = filterEstado.value;
+            const selIncidenciaDropdown = filterIncidencia.value;
+            const selFecha = filterFecha.value;
+
+            filteredData = rawData.filter(item => {
+                if (!showMLPLlegoTarde && item.mlpLlegoTarde && !item.demoraCarga && !item.tiempoTransito && !item.cptVencido) {
+                    return false;
+                }
+
+                const itemRegion = (item.region || '').toUpperCase();
+                const itemSubregion = (item.subregion || '').toUpperCase();
+
+                const matchRegion = selectedRegions.size === 0 || selectedRegions.has(itemRegion);
+                const matchSubregion = selectedSubregions.size === 0 || selectedSubregions.has(itemSubregion);
+                const matchEstado = selEstado === '' || item.estado === selEstado;
+                const matchFecha = selFecha === '' || item.fecha === selFecha;
+
+                let matchIncidencia = true;
+                if (selectedIncidencias.size > 0) {
+                    let hasAnySelected = false;
+                    if (selectedIncidencias.has("CPT Vencido") && item.cptVencido) hasAnySelected = true;
+                    if (showMLPLlegoTarde && selectedIncidencias.has("MLP llego tarde") && item.mlpLlegoTarde) hasAnySelected = true;
+                    if (selectedIncidencias.has("Demora en la carga") && item.demoraCarga) hasAnySelected = true;
+                    if (selectedIncidencias.has("Tiempo de transito") && item.tiempoTransito) hasAnySelected = true;
+                    matchIncidencia = hasAnySelected;
+                } else if (selIncidenciaDropdown === "Sin Incidencia") {
+                    matchIncidencia = !item.mlpLlegoTarde && !item.demoraCarga && !item.tiempoTransito && !item.cptVencido;
+                }
+
+                return matchRegion && matchSubregion && matchIncidencia && matchEstado && matchFecha;
+            });
+
+            // ORDENAR DE MAYOR A MENOR FECHA (MÁS RECIENTE A MÁS ANTIGUA)
+            filteredData.sort((a, b) => {
+                const dateA = parseDateTime(a.fecha) || new Date(0);
+                const dateB = parseDateTime(b.fecha) || new Date(0);
+                return dateB.getTime() - dateA.getTime();
+            });
+
+            populateDropdowns();
+            renderTable();
+            updateKPIs();
+            renderCharts();
+        }
+
+        btnResetFilters.addEventListener('click', () => {
+            selectedRegions.clear();
+            selectedSubregions.clear();
+            selectedIncidencias.clear();
+            filterFecha.value = '';
+            filterIncidencia.value = '';
+            filterEstado.value = '';
+            updateKPIStyles();
+            applyFilters();
+        });
+
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            if (filteredData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-slate-400 font-medium"><i class="fa-solid fa-folder-open text-3xl mb-2 text-slate-300 block"></i>Carga un archivo CSV Diario para visualizar el tablero.</td></tr>`;
+                return;
+            }
+
+            let html = '';
+            filteredData.forEach(item => {
+                const isIncidencia = (showMLPLlegoTarde && item.mlpLlegoTarde) || item.demoraCarga || item.tiempoTransito || item.cptVencido;
+                const textStyle = isIncidencia ? "font-semibold text-slate-900" : "text-slate-400 font-normal";
+                const isNotFound = item.region === 'No Encontrado';
+
+                const regionBadge = isNotFound
+                    ? `<span class="bg-rose-50 text-rose-600 px-2 py-0.5 rounded-md font-bold text-[11px] inline-flex items-center gap-1 border border-rose-200"><i class="fa-solid fa-triangle-exclamation"></i> No Encontrado</span>`
+                    : item.region;
+
+                const subregionBadge = isNotFound
+                    ? `<span class="text-slate-400 font-medium text-[11px]">N/A</span>`
+                    : item.subregion;
+
+                html += `
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="p-3 px-4 border-r border-slate-100 font-medium text-slate-500">${item.fecha}</td>
+                        <td class="p-3 px-4 border-r border-slate-100 font-bold text-slate-800">${item.travelId}</td>
+                        <td class="p-3 px-4 border-r border-slate-100 font-semibold text-slate-700">${item.destino || 'N/A'}</td>
+                        <td class="p-3 px-4 border-r border-slate-100 font-semibold text-slate-700">${regionBadge}</td>
+                        <td class="p-3 px-4 border-r border-slate-100 font-semibold text-slate-700">${subregionBadge}</td>
+                        <td class="p-3 px-4 ${textStyle}">${item.textoIncidencia}</td>
+                        <td class="p-3 px-4 text-center">
+                            <button type="button" onclick="quickLinkDestino('${item.destino}')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-2.5 py-1 rounded-lg border border-slate-200 transition-colors inline-flex items-center gap-1" title="Gestionar Destino">
+                                <i class="fa-solid fa-gear text-[10px] text-slate-500"></i> Base
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+        }
+
+        function updateKPIs() {
+            document.getElementById('kpiTotal').textContent = filteredData.length;
+            document.getElementById('kpiCptVencido').textContent = filteredData.filter(i => i.cptVencido).length;
+            document.getElementById('kpiLlegoTarde').textContent = filteredData.filter(i => i.mlpLlegoTarde).length;
+            document.getElementById('kpiDemoraCarga').textContent = filteredData.filter(i => i.demoraCarga).length;
+            document.getElementById('kpiTiempoTransito').textContent = filteredData.filter(i => i.tiempoTransito).length;
+            document.getElementById('kpiEstados').textContent = new Set(filteredData.map(i => i.estado).filter(Boolean)).size;
+        }
+
+        function renderCharts() {
+            const allRegionsSet = new Set();
+            masterMap.forEach(v => {
+                if (v.region) allRegionsSet.add(v.region.toUpperCase());
+            });
+            rawData.forEach(i => {
+                if (i.region && i.region !== 'N/A') allRegionsSet.add(i.region.toUpperCase());
+            });
+
+            let regionesList = Array.from(allRegionsSet).filter(Boolean).sort();
+            if (regionesList.length === 0) {
+                regionesList = ["METRO", "CENTRO", "SUR", "NORTE"];
+            }
+
+            const selEstado = filterEstado.value;
+            const selIncidenciaDropdown = filterIncidencia.value;
+
+            const dataForBarChart = rawData.filter(item => {
+                if (!showMLPLlegoTarde && item.mlpLlegoTarde && !item.demoraCarga && !item.tiempoTransito && !item.cptVencido) {
+                    return false;
+                }
+
+                const itemSubregion = (item.subregion || '').toUpperCase();
+                const matchSubregion = selectedSubregions.size === 0 || selectedSubregions.has(itemSubregion);
+                const matchEstado = selEstado === '' || item.estado === selEstado;
+
+                let matchIncidencia = true;
+                if (selectedIncidencias.size > 0) {
+                    let hasAnySelected = false;
+                    if (selectedIncidencias.has("CPT Vencido") && item.cptVencido) hasAnySelected = true;
+                    if (showMLPLlegoTarde && selectedIncidencias.has("MLP llego tarde") && item.mlpLlegoTarde) hasAnySelected = true;
+                    if (selectedIncidencias.has("Demora en la carga") && item.demoraCarga) hasAnySelected = true;
+                    if (selectedIncidencias.has("Tiempo de transito") && item.tiempoTransito) hasAnySelected = true;
+                    matchIncidencia = hasAnySelected;
+                } else if (selIncidenciaDropdown === "Sin Incidencia") {
+                    matchIncidencia = !item.mlpLlegoTarde && !item.demoraCarga && !item.tiempoTransito && !item.cptVencido;
+                }
+
+                return matchSubregion && matchIncidencia && matchEstado;
+            });
+           
+            const cptVencidoData = regionesList.map(reg => dataForBarChart.filter(i => i.region.toUpperCase() === reg && i.cptVencido).length);
+            const mlpData = showMLPLlegoTarde
+                ? regionesList.map(reg => dataForBarChart.filter(i => i.region.toUpperCase() === reg && i.mlpLlegoTarde).length)
+                : regionesList.map(() => 0);
+            const demoraData = regionesList.map(reg => dataForBarChart.filter(i => i.region.toUpperCase() === reg && i.demoraCarga).length);
+            const transitoData = regionesList.map(reg => dataForBarChart.filter(i => i.region.toUpperCase() === reg && i.tiempoTransito).length);
+
+            const borderColorsMLP = regionesList.map(r => selectedRegions.has(r) ? '#f43f5e' : 'transparent');
+            const borderWidths = regionesList.map(r => selectedRegions.has(r) ? 2 : 0);
+
+            // BARRAS CON PALETA SOBRIA
+            const ctxBars = document.getElementById('chartRegionBars').getContext('2d');
+            if (chartBarsInstance) chartBarsInstance.destroy();
+
+            const datasetsBars = [
+                { label: 'CPT Vencido', data: cptVencidoData, backgroundColor: '#a855f7', borderColor: borderColorsMLP, borderWidth: borderWidths, borderRadius: 6 }
+            ];
+            if (showMLPLlegoTarde) {
+                datasetsBars.push({ label: 'MLP Llegó Tarde', data: mlpData, backgroundColor: '#f43f5e', borderColor: borderColorsMLP, borderWidth: borderWidths, borderRadius: 6 });
+            }
+            datasetsBars.push(
+                { label: 'Demora en Carga', data: demoraData, backgroundColor: '#f59e0b', borderColor: borderColorsMLP, borderWidth: borderWidths, borderRadius: 6 },
+                { label: 'Tiempo Tránsito', data: transitoData, backgroundColor: '#3b82f6', borderColor: borderColorsMLP, borderWidth: borderWidths, borderRadius: 6 }
+            );
+
+            chartBarsInstance = new Chart(ctxBars, {
+                type: 'bar',
+                data: {
+                    labels: regionesList,
+                    datasets: datasetsBars
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    onClick: (evt, activeElements) => {
+                        if (activeElements.length > 0) {
+                            const index = activeElements[0].index;
+                            const clickedRegion = regionesList[index];
+                            const isMulti = evt.native ? (evt.native.ctrlKey || evt.native.metaKey) : false;
+
+                            if (isMulti) {
+                                if (selectedRegions.has(clickedRegion)) selectedRegions.delete(clickedRegion);
+                                else selectedRegions.add(clickedRegion);
+                            } else {
+                                if (selectedRegions.size === 1 && selectedRegions.has(clickedRegion)) {
+                                    selectedRegions.clear();
+                                } else {
+                                    selectedRegions.clear();
+                                    selectedRegions.add(clickedRegion);
+                                }
+                            }
+                            selectedSubregions.clear();
+                            applyFilters();
+                        }
+                    },
+                    plugins: {
+                        legend: { position: 'top', labels: { font: { family: 'Inter', size: 11 }, boxWidth: 12 } }
+                    },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { beginAtZero: true, grid: { color: '#f1f5f9' } }
+                    }
+                }
+            });
+
+            // DONA CON PALETA SOBRIA
+            const sinIncidenciaCount = filteredData.filter(i => !i.mlpLlegoTarde && !i.demoraCarga && !i.tiempoTransito && !i.cptVencido).length;
+            const cptVencidoTotalCount = filteredData.filter(i => i.cptVencido).length;
+            const mlpTotalCount = showMLPLlegoTarde ? filteredData.filter(i => i.mlpLlegoTarde).length : 0;
+            const demoraTotalCount = filteredData.filter(i => i.demoraCarga).length;
+            const transitoTotalCount = filteredData.filter(i => i.tiempoTransito).length;
+
+            const ctxDoughnut = document.getElementById('chartIncidenciasDoughnut').getContext('2d');
+            if (chartDoughnutInstance) chartDoughnutInstance.destroy();
+
+            const donutLabels = showMLPLlegoTarde
+                ? ['Sin Incidencia', 'CPT Vencido', 'MLP Llegó Tarde', 'Demora Carga', 'Tiempo Tránsito']
+                : ['Sin Incidencia', 'CPT Vencido', 'Demora Carga', 'Tiempo Tránsito'];
+
+            const donutData = showMLPLlegoTarde
+                ? [sinIncidenciaCount, cptVencidoTotalCount, mlpTotalCount, demoraTotalCount, transitoTotalCount]
+                : [sinIncidenciaCount, cptVencidoTotalCount, demoraTotalCount, transitoTotalCount];
+
+            const donutColors = showMLPLlegoTarde
+                ? ['#10b981', '#a855f7', '#f43f5e', '#f59e0b', '#3b82f6']
+                : ['#10b981', '#a855f7', '#f59e0b', '#3b82f6'];
+
+            chartDoughnutInstance = new Chart(ctxDoughnut, {
+                type: 'doughnut',
+                data: {
+                    labels: donutLabels,
+                    datasets: [{
+                        data: donutData,
+                        backgroundColor: donutColors,
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    onClick: (evt, activeElements) => {
+                        if (activeElements.length > 0) {
+                            const index = activeElements[0].index;
+                            const labelClicked = donutLabels[index];
+                            const isMulti = evt.native ? (evt.native.ctrlKey || evt.native.metaKey) : false;
+
+                            let incKey = "";
+                            if (labelClicked === 'CPT Vencido') incKey = 'CPT Vencido';
+                            else if (labelClicked === 'MLP Llegó Tarde') incKey = 'MLP llego tarde';
+                            else if (labelClicked === 'Demora Carga') incKey = 'Demora en la carga';
+                            else if (labelClicked === 'Tiempo Tránsito') incKey = 'Tiempo de transito';
+
+                            if (incKey) {
+                                if (isMulti) {
+                                    if (selectedIncidencias.has(incKey)) selectedIncidencias.delete(incKey);
+                                    else selectedIncidencias.add(incKey);
+                                } else {
+                                    if (selectedIncidencias.size === 1 && selectedIncidencias.has(incKey)) {
+                                        selectedIncidencias.clear();
+                                    } else {
+                                        selectedIncidencias.clear();
+                                        selectedIncidencias.add(incKey);
+                                    }
+                                }
+                                filterIncidencia.value = selectedIncidencias.size === 1 ? Array.from(selectedIncidencias)[0] : "";
+                            } else if (labelClicked === 'Sin Incidencia') {
+                                selectedIncidencias.clear();
+                                filterIncidencia.value = 'Sin Incidencia';
+                            }
+
+                            updateKPIStyles();
+                            applyFilters();
+                        }
+                    },
+                    plugins: {
+                        legend: { position: 'bottom', labels: { font: { family: 'Inter', size: 11 }, boxWidth: 12 } }
+                    },
+                    cutout: '65%'
+                }
+            });
+        }
+
+        btnExport.addEventListener('click', () => {
+            if (filteredData.length === 0) return;
+
+            let csvContent = "Fecha,Travel ID,Destino,Region,Subregion,Incidencia / Detalle Retraso,Estatus del Viaje\n";
+            filteredData.forEach(row => {
+                const escape = (str) => `"${(str || '').toString().replace(/"/g, '""')}"`;
+                csvContent += `${escape(row.fecha)},${escape(row.travelId)},${escape(row.destino)},${escape(row.region)},${escape(row.subregion)},${escape(row.textoIncidencia)},${escape(row.estado)}\n`;
+            });
+
+            const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'Reporte_Viajes_Incidencias.csv';
+            link.click();
+
+            showToast("Reporte descargado con éxito.");
+        });
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').textContent = msg;
+            toast.classList.remove('translate-y-24', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-24', 'opacity-0');
+            }, 3000);
+        }
+
+        document.addEventListener('DOMContentLoaded', loadMasterFromFirebase);
+    </script>
+</body>
+</html>
